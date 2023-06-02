@@ -67,7 +67,36 @@ static void HelpMarker(const char* desc)
 		ImGui::EndTooltip();
 	}
 }
+HRESULT hkResizeBuffers(IDXGISwapChain* pSwapChain, UINT BufferCount, UINT Width, UINT Height, DXGI_FORMAT NewFormat, UINT SwapChainFlags)
+{
+	if (mainRenderTargetView) {
+		pContext->OMSetRenderTargets(0, 0, 0);
+		mainRenderTargetView->Release();
+	}
 
+	HRESULT hr = oResizeBuffers(pSwapChain, BufferCount, Width, Height, NewFormat, SwapChainFlags);
+
+	ID3D11Texture2D* pBuffer;
+	pSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&pBuffer);
+	// Perform error handling here!
+
+	pDevice->CreateRenderTargetView(pBuffer, NULL, &mainRenderTargetView);
+	// Perform error handling here!
+	pBuffer->Release();
+
+	pContext->OMSetRenderTargets(1, &mainRenderTargetView, NULL);
+
+	// Set up the viewport.
+	D3D11_VIEWPORT vp;
+	vp.Width = float(Width);
+	vp.Height = float(Height);
+	vp.MinDepth = 0.0f;
+	vp.MaxDepth = 1.0f;
+	vp.TopLeftX = 0;
+	vp.TopLeftY = 0;
+	pContext->RSSetViewports(1, &vp);
+	return hr;
+}
 bool init = false;
 static HRESULT __stdcall hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT Flags)
 {
@@ -912,6 +941,7 @@ DWORD WINAPI MainThread(LPVOID lpReserved)
 		if (kiero::init(kiero::RenderType::D3D11) == kiero::Status::Success)
 		{
 			kiero::bind(8, (void**)&oPresent, hkPresent);
+			kiero::bind(13, (void**)& ResizeBuffers, hkResizeBuffers);
 			init_hook = true;
 		}
 	} while (!init_hook);
